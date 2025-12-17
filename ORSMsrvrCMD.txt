@@ -1,0 +1,137 @@
+from pypandoc import convert_text
+
+text = """
+UBER-STYLE MATCHMAKING SERVER SETUP (NOIDA / DELHI)
+==================================================
+
+This file contains ALL necessary commands to:
+1. Install tools
+2. Prepare map data
+3. Build OSRM routing
+4. Start routing server
+
+-----------------------------------------------
+1. SYSTEM REQUIREMENTS
+-----------------------------------------------
+- macOS (Apple Silicon or Intel)
+- Python 3.9+
+- Homebrew installed
+- At least 4GB RAM
+- Internet connection
+
+-----------------------------------------------
+2. INSTALL REQUIRED TOOLS
+-----------------------------------------------
+
+Install Homebrew (if not installed):
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+Install OSRM backend:
+brew install osrm-backend
+
+Install Osmium (for clipping map):
+brew install osmium-tool
+
+-----------------------------------------------
+3. DOWNLOAD OPENSTREETMAP DATA
+-----------------------------------------------
+
+Download full India map:
+wget http://download.geofabrik.de/asia/india-latest.osm.pbf
+
+(Approx size: ~1.5GB)
+
+-----------------------------------------------
+4. CLIP DELHI / NOIDA REGION
+-----------------------------------------------
+
+Bounding box:
+MinLon: 77.31
+MinLat: 28.53
+MaxLon: 77.42
+MaxLat: 28.65
+
+Command:
+osmium extract india-latest.osm.pbf -b 77.31,28.53,77.42,28.65 -o noida_delhi.osm.pbf
+
+Result:
+Creates small city-only map (~100MB)
+
+-----------------------------------------------
+5. DOWNLOAD OSRM PROFILES
+-----------------------------------------------
+
+Clone OSRM profiles repository:
+git clone https://github.com/Project-OSRM/osrm-backend.git
+
+Car profile path:
+osrm-backend/profiles/car.lua
+
+-----------------------------------------------
+6. BUILD ROUTING GRAPH
+-----------------------------------------------
+
+Extract routing data:
+osrm-extract -p osrm-backend/profiles/car.lua noida_delhi.osm.pbf
+
+Contract graph for fast routing:
+osrm-contract noida_delhi.osrm
+
+-----------------------------------------------
+7. START OSRM SERVER
+-----------------------------------------------
+
+IMPORTANT:
+macOS reserves port 5000.
+Use port 5001.
+
+Start server:
+osrm-routed --port 5001 noida_delhi.osrm
+
+Server URL:
+http://127.0.0.1:5001
+
+-----------------------------------------------
+8. VERIFY SERVER
+-----------------------------------------------
+
+Open browser:
+http://127.0.0.1:5001/route/v1/driving/77.3645,28.6178;77.3553,28.6280
+
+If JSON response appears → SERVER IS RUNNING
+
+-----------------------------------------------
+9. PYTHON ENVIRONMENT
+-----------------------------------------------
+
+Create virtual environment:
+python -m venv TecobAITaxiENV
+source TecobAITaxiENV/bin/activate
+
+Install Python dependencies:
+pip install numpy scipy requests folium h3
+
+-----------------------------------------------
+10. RUN MATCHMAKING BACKEND
+-----------------------------------------------
+
+Start OSRM server (Terminal 1):
+osrm-routed --port 5001 noida_delhi.osrm
+
+Run Python backend (Terminal 2):
+python matchmaking_osrm.py
+
+-----------------------------------------------
+SYSTEM IS READY 🚀
+-----------------------------------------------
+
+You are now running a REAL Uber-style matching backend:
+- Real street routing
+- Travel-time based assignment
+- Free & fully local
+- Scalable for cities
+
+-----------------------------------------------
+"""
+
+convert_text(text, 'plain', format='md', outputfile='/mnt/data/Uber_Style_Matchmaking_Server_Setup.txt', extra_args=['--standalone'])

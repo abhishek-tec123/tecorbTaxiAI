@@ -1,0 +1,16 @@
+faker
+h3==3.7.6
+shapely
+pandas
+numpy
+matplotlib
+folium
+mysql-connector-python
+networkx
+scikit-learn
+osmnx
+scipy
+
+take clone of 
+Clone OSRM profiles repository:
+git clone https://github.com/Project-OSRM/osrm-backend.git
