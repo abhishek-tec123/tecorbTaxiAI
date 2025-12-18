@@ -11,12 +11,12 @@ MAP_DIR = os.path.join(BASE_DIR, "map_file")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from routes.init_db import router as init_db_router
-from routes.seed import router as seed_router
-from routes.generate_trips import router as generate_trips_router
-from routes.aggregate import router as aggregate_router
-from routes.run_all import router as run_all_router
-from routes.runmatcher import router as ride_matching
+from src.routes.init_db import router as init_db_router
+from src.routes.seed import router as seed_router
+from src.routes.generate_trips import router as generate_trips_router
+from src.routes.aggregate import router as aggregate_router
+from src.routes.run_all import router as run_all_router
+from src.routes.runmatcher import router as ride_matching
 
 
 app = FastAPI(
