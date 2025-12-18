@@ -13,6 +13,8 @@ scipy
 
 pydantic
 uvicorn
+aiohttp
+fastapi
 
 take clone of 
 Clone OSRM profiles repository:
