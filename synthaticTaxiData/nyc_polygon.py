@@ -132,7 +132,7 @@ for hex_id, inter in intersections.items():
 #     folium.CircleMarker(location=[c_lat, c_lon], radius=2, color="black", fill=True).add_to(m)
 
 # Save map
-OUT_HTML = "nyc_polygon_intersection_h3.html"
+OUT_HTML = "nycMap_polygon_intersection_h3.html"
 m.save(OUT_HTML)
 print(f"Map saved as {OUT_HTML}")
 
