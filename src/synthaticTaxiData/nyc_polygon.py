@@ -5,6 +5,7 @@ draw results in folium, and print hex summary (IDs, count, area).
 """
 
 import csv
+import os
 import folium
 import h3
 from shapely.geometry import Polygon
@@ -131,8 +132,12 @@ for hex_id, inter in intersections.items():
 #     c_lat, c_lon = h3.h3_to_geo(hex_id)
 #     folium.CircleMarker(location=[c_lat, c_lon], radius=2, color="black", fill=True).add_to(m)
 
-# Save map
-OUT_HTML = "nycMap_polygon_intersection_h3.html"
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MAP_DIR = os.path.join(BASE_DIR, "map_file")
+os.makedirs(MAP_DIR, exist_ok=True)
+
+# Save map into map_file directory
+OUT_HTML = os.path.join(MAP_DIR, "nycMap_polygon_intersection_h3.html")
 m.save(OUT_HTML)
 print(f"Map saved as {OUT_HTML}")
 
@@ -147,13 +152,13 @@ print(f"Total intersected hexagons: {len(intersected_hexes)}")
 print("=================================\n")
 
 # Print all hex IDs (one per line)
-for h in intersected_hexes:
+for h in intersected_hexes[:5]:
     print(h)
 
 # -----------------------------------------
-# 8. (Optional) Save hex list to CSV for later use
+# 8. (Optional) Save hex list to CSV for later use, in map_file directory
 # -----------------------------------------
-CSV_OUT = "intersected_hexes.csv"
+CSV_OUT = os.path.join(MAP_DIR, "intersected_hexes.csv")
 with open(CSV_OUT, "w", newline="") as csvfile:
     writer = csv.writer(csvfile)
     writer.writerow(["hex_id", "resolution", "hex_area_km2", "hex_area_m2"])

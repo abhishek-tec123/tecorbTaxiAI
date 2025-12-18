@@ -26,13 +26,17 @@ try:
 except ImportError:
     raise ImportError("Please install h3: pip install h3==3.7.6")
 
-# Ensure we can import modules from the synthaticTaxiData folder
+# Project base and src layout
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATA_DIR = os.path.join(BASE_DIR, "synthaticTaxiData")
-DB_NAME = os.getenv("MYSQL_DB", "taxi")
+SRC_DIR = os.path.join(BASE_DIR, "src")
+DATA_DIR = os.path.join(SRC_DIR, "synthaticTaxiData")
+DB_NAME = os.getenv("MYSQL_DB", "taxiProduction")
 
 import sys
 
+# Ensure `src` and the moved `synthaticTaxiData` package are importable
+if SRC_DIR not in sys.path:
+    sys.path.append(SRC_DIR)
 if DATA_DIR not in sys.path:
     sys.path.append(DATA_DIR)
 
@@ -131,7 +135,7 @@ def seed(*, drivers: int = 7_950, riders: int = 7_590, activity_date: date) -> N
     Programmatic API: seed drivers and riders.
 
     Example (Python):
-        from app import seed
+        from dataApp import seed
         from datetime import date
         seed(drivers=5000, riders=5000, activity_date=date(2025, 11, 17))
     """
@@ -154,7 +158,7 @@ def generate_trips(
     Programmatic API: generate trips for a given date.
 
     Example:
-        from app import generate_trips
+        from dataApp import generate_trips
         from datetime import date
         generate_trips(trip_date=date(2025, 11, 17), num_rides=3000)
     """
@@ -200,7 +204,7 @@ def aggregate(*, target_date: date) -> None:
 #     This module is mainly intended to be imported from other Python code
 #     (e.g. API layer). Example:
 
-#         from app import init_db, seed, generate_trips, aggregate
+#         from dataApp import init_db, seed, generate_trips, aggregate
 #         from datetime import date
 #         init_db()
 #         seed(drivers=1000, riders=1000, activity_date=date(2025, 11, 17))

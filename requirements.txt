@@ -11,6 +11,9 @@ scikit-learn
 osmnx
 scipy
 
+pydantic
+uvicorn
+
 take clone of 
 Clone OSRM profiles repository:
 git clone https://github.com/Project-OSRM/osrm-backend.git
