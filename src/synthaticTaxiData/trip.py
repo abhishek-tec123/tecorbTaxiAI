@@ -219,12 +219,12 @@ def create_test_trip(
         if commit:
             conn.commit()
 
-        if verbose:
-            print(
-                f"Trip {trip_id[:6]} | {blueprint['requested_at']} "
-                f"status={'completed' if success else 'cancelled'} "
-                f"cancels={len(cancellations)}"
-            )
+        # if verbose:
+        #     print(
+        #         f"Trip {trip_id[:6]} | {blueprint['requested_at']} "
+        #         f"status={'completed' if success else 'cancelled'} "
+        #         f"cancels={len(cancellations)}"
+        #     )
 
     finally:
         if own_conn:
@@ -261,8 +261,8 @@ def create_trips_for_date(
                 conn.commit()
                 print(f"Committed {i}/{num_rides}")
 
-            if verbose or i % progress_every == 0:
-                print(f"[{i}/{num_rides}] inserted @ {ts}")
+            # if verbose or i % progress_every == 0:
+            #     print(f"[{i}/{num_rides}] inserted @ {ts}")
 
         conn.commit()
     finally:
