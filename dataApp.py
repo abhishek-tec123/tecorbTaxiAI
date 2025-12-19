@@ -1,24 +1,6 @@
-"""
-Single entrypoint CLI for the taxi simulation project.
-
-Responsibilities:
-- Initialize the SQLite database (`taxi.sqlite`)
-- Populate the `h3_hexes` grid
-- Seed drivers and riders
-- Generate trips for a given day
-- Run all aggregations (trip hex counts, rider/driver daily & hourly hex counts)
-
-Usage examples:
-  python app.py init-db
-  python app.py seed --drivers 5000 --riders 5000 --date 2025-11-17
-  python app.py generate-trips --date 2025-11-17 --num 3000
-  python app.py aggregate --date 2025-11-17
-"""
-
 from __future__ import annotations
 
 import os
-import mysql.connector
 from datetime import datetime, date
 
 try:
@@ -40,7 +22,7 @@ if SRC_DIR not in sys.path:
 if DATA_DIR not in sys.path:
     sys.path.append(DATA_DIR)
 
-from schema import ALL_TABLES, H3_HEXES_TABLE, HEX_LIST  # type: ignore
+from schema import ALL_TABLES, HEX_LIST  # type: ignore
 import rider_driver  # type: ignore
 import trip  # type: ignore
 import save_hex_counts_mysql  # type: ignore
@@ -195,40 +177,99 @@ def aggregate(*, target_date: date) -> None:
         store_hrly_count_rid_dri_perhex.process_entity(entity, target_date)
 
     print(f"All aggregations completed for {target_date_str}.")
-
-
+# # insert with single single date-----------------------------------------------------
 # def main() -> None:
 #     """
-#     Simple entrypoint when run as a script.
+#     Main execution entrypoint.
 
-#     This module is mainly intended to be imported from other Python code
-#     (e.g. API layer). Example:
-
-#         from dataApp import init_db, seed, generate_trips, aggregate
-#         from datetime import date
-#         init_db()
-#         seed(drivers=1000, riders=1000, activity_date=date(2025, 11, 17))
-#         generate_trips(trip_date=date(2025, 11, 17), num_rides=3000)
-#         aggregate(target_date=date(2025, 11, 17))
+#     This will:
+#     - Initialize the database
+#     - Seed drivers and riders
+#     - Generate trips
+#     - Run all aggregations
 #     """
-#     print("app.py is intended to be imported and used via its functions, not CLI.")
+
+#     # ---- CONFIG ----
+#     ACTIVITY_DATE = date(2025, 7, 7)
+#     NUM_DRIVERS = 3290
+#     NUM_RIDERS = 3330
+#     NUM_TRIPS = 10
+
+#     print("🚕 Taxi Simulation Started")
+#     print("=" * 50)
+
+#     # 1️⃣ Initialize DB (idempotent)
+#     print("Ensuring database schema exists...")
+#     init_db()
+
+#     # 2️⃣ Seed drivers & riders
+#     print(f"Seeding {NUM_DRIVERS} drivers and {NUM_RIDERS} riders...")
+#     seed(
+#         drivers=NUM_DRIVERS,
+#         riders=NUM_RIDERS,
+#         activity_date=ACTIVITY_DATE,
+#     )
+
+#     # 3️⃣ Generate trips
+#     print(f"Generating {NUM_TRIPS} trips for {ACTIVITY_DATE}...")
+#     generate_trips(
+#         trip_date=ACTIVITY_DATE,
+#         num_rides=NUM_TRIPS,
+#         batch_size=1000,
+#         progress_every=100,
+#         verbose=True,
+#     )
+
+#     # 4️⃣ Run aggregations
+#     print("Running aggregations...")
+#     aggregate(target_date=ACTIVITY_DATE)
+
+#     print("=" * 50)
+#     print("✅ Taxi Simulation Completed Successfully")
+
+
+# if __name__ == "__main__":
+#     main()
+
+
+# insert with multiple date with random value
+
+from datetime import date, timedelta
+import random
+
+
+def monday_range(start: date, end: date):
+    """Yield every Monday from start to end (inclusive)."""
+    current = start
+    while current <= end:
+        if current.weekday() == 0:  # Monday
+            yield current
+        current += timedelta(days=1)
+
 
 def main() -> None:
     """
     Main execution entrypoint.
 
     This will:
-    - Initialize the database
-    - Seed drivers and riders
-    - Generate trips
-    - Run all aggregations
+    - Initialize the database (idempotent)
+    - For every Monday in the given range:
+        - Seed drivers and riders (randomized)
+        - Generate trips (fixed count)
+        - Run aggregations
     """
 
     # ---- CONFIG ----
-    ACTIVITY_DATE = date(2025, 11, 17)
-    NUM_DRIVERS = 50
-    NUM_RIDERS = 50
-    NUM_TRIPS = 100
+    START_DATE = date(2025, 7, 7)
+    END_DATE = date(2025, 11, 17)
+
+    RIDER_MIN = 2700
+    RIDER_MAX = 3200
+
+    DRIVER_GAP_MIN = 100   # drivers less than riders
+    DRIVER_GAP_MAX = 200
+
+    NUM_TRIPS = 10  # fixed trips per day
 
     print("🚕 Taxi Simulation Started")
     print("=" * 50)
@@ -237,27 +278,32 @@ def main() -> None:
     print("Ensuring database schema exists...")
     init_db()
 
-    # 2️⃣ Seed drivers & riders
-    print(f"Seeding {NUM_DRIVERS} drivers and {NUM_RIDERS} riders...")
-    seed(
-        drivers=NUM_DRIVERS,
-        riders=NUM_RIDERS,
-        activity_date=ACTIVITY_DATE,
-    )
+    # 2️⃣ Process every Monday
+    for activity_date in monday_range(START_DATE, END_DATE):
+        riders = random.randint(RIDER_MIN, RIDER_MAX)
+        drivers = riders - random.randint(DRIVER_GAP_MIN, DRIVER_GAP_MAX)
 
-    # 3️⃣ Generate trips
-    print(f"Generating {NUM_TRIPS} trips for {ACTIVITY_DATE}...")
-    generate_trips(
-        trip_date=ACTIVITY_DATE,
-        num_rides=NUM_TRIPS,
-        batch_size=1000,
-        progress_every=100,
-        verbose=True,
-    )
+        print("\n" + "-" * 50)
+        print(f"📅 Processing {activity_date}")
+        print(f"Seeding {drivers} drivers and {riders} riders...")
 
-    # 4️⃣ Run aggregations
-    print("Running aggregations...")
-    aggregate(target_date=ACTIVITY_DATE)
+        seed(
+            drivers=drivers,
+            riders=riders,
+            activity_date=activity_date,
+        )
+
+        print(f"Generating {NUM_TRIPS} trips for {activity_date}...")
+        generate_trips(
+            trip_date=activity_date,
+            num_rides=NUM_TRIPS,
+            batch_size=1000,
+            progress_every=100,
+            verbose=True,
+        )
+
+        print("Running aggregations...")
+        aggregate(target_date=activity_date)
 
     print("=" * 50)
     print("✅ Taxi Simulation Completed Successfully")
@@ -265,5 +311,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
-

@@ -19,3 +19,8 @@ fastapi
 take clone of 
 Clone OSRM profiles repository:
 git clone https://github.com/Project-OSRM/osrm-backend.git
+
+USE taxiProduction;    -- select your database
+SHOW TABLES;           -- list all tables
+DESCRIBE table_name;   -- see table structure
+SELECT * FROM table_name LIMIT 10;  -- preview rows

@@ -166,3 +166,12 @@ with open(CSV_OUT, "w", newline="") as csvfile:
         writer.writerow([h, RESOLUTION, f"{hex_area_km2:.6f}", f"{hex_area_m2:.2f}"])
 
 print(f"\nHex list exported to: {CSV_OUT}")
+# -----------------------------
+# 9. Summary
+# -----------------------------------------
+print("\n========== HEX SUMMARY ==========")
+print(f"Resolution: {RESOLUTION}")
+print(f"Hex area km²: {hex_area_km2:.6f}")
+print(f"Hex area m²: {hex_area_m2:,.2f}")
+print(f"Total intersected hexes: {len(intersected_hexes)}")
+print("=================================\n")
