@@ -70,7 +70,7 @@ async def runmatcher_async(num_riders: int):
     return {
         "matches": matches,
         "metrics": metrics,
-        "map_file": "http://127.0.0.1:8000/map_file"
+        "map_file": "http://127.0.0.1:8000/map_file/map.html"
     }
 
 

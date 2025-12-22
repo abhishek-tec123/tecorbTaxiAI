@@ -271,9 +271,15 @@ def create_trips_for_date(
 # # ---------------------------------------------------------
 # # Run
 # # ---------------------------------------------------------
+
 # if __name__ == "__main__":
-#     create_trips_for_date(date(2025, 11, 3), 2900)
-#     # create_trips_for_date(date(2025, 11, 10), 2840)
-#     # create_trips_for_date(date(2025, 11, 17), 2730)
-#     # create_trips_for_date(date(2025, 10, 27), 2860)
-#     # create_trips_for_date(date(2025, 9, 29), 3210)
+#     dates = [
+#         date(2025, 8, 4),
+#         date(2025, 8, 11),
+#         date(2025, 8, 18),
+#         # date(2025, 7, 28)
+#     ]
+
+#     for trip_date in dates:
+#         num_trips = random.randint(2000, 2500)  # random number between 2000 and 2500
+#         create_trips_for_date(trip_date, num_trips)

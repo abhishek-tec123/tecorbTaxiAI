@@ -18,6 +18,8 @@ from src.routes.aggregate import router as aggregate_router
 from src.routes.run_all import router as run_all_router
 from src.routes.runmatcher import router as ride_matching
 
+from src.routes.getDailyHrly_rider_drvr import router as rider_driver
+from src.routes.getTripSummary import router as trip_summary
 
 app = FastAPI(
     title="Taxi Simulation API",
@@ -48,6 +50,9 @@ app.include_router(init_db_router)
 app.include_router(seed_router)
 app.include_router(generate_trips_router)
 app.include_router(aggregate_router)
-app.include_router(ride_matching)
 
 app.include_router(run_all_router)
+
+app.include_router(ride_matching)
+app.include_router(rider_driver)
+app.include_router(trip_summary)
