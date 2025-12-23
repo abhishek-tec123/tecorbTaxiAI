@@ -1,9 +1,9 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
+from fastapi.routing import APIRoute
 import os
 import sys
 
-# Ensure we can import code from the `src` directory where all packages now live
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, "src")
 MAP_DIR = os.path.join(BASE_DIR, "map_file")
@@ -11,15 +11,7 @@ MAP_DIR = os.path.join(BASE_DIR, "map_file")
 if SRC_DIR not in sys.path:
     sys.path.insert(0, SRC_DIR)
 
-from src.routes.init_db import router as init_db_router
-from src.routes.seed import router as seed_router
-from src.routes.generate_trips import router as generate_trips_router
-from src.routes.aggregate import router as aggregate_router
-from src.routes.run_all import router as run_all_router
-from src.routes.runmatcher import router as ride_matching
-
-from src.routes.getDailyHrly_rider_drvr import router as rider_driver
-from src.routes.getTripSummary import router as trip_summary
+from src.routes.registry import ROUTE_CONFIG
 
 app = FastAPI(
     title="Taxi Simulation API",
@@ -27,32 +19,32 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Mount static directory for generated maps/CSV files
-if not os.path.exists(MAP_DIR):
-    os.makedirs(MAP_DIR, exist_ok=True)
-
+os.makedirs(MAP_DIR, exist_ok=True)
 app.mount("/map_file", StaticFiles(directory=MAP_DIR), name="map_file")
 
-# ----------------------------
-# Health API (kept here)
-# ----------------------------
-
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
 
+@app.get("/routes", tags=["Meta"])
+def list_routes():
+    routes = []
+    for route in app.routes:
+        if isinstance(route, APIRoute):
+            routes.append({
+                "path": route.path,
+                "methods": sorted(route.methods),
+                "name": route.name,
+                "tags": route.tags,
+            })
+    return routes
 
-# ----------------------------
 # Register routers
-# ----------------------------
+API_PREFIX = "/api/v1"
 
-app.include_router(init_db_router)
-app.include_router(seed_router)
-app.include_router(generate_trips_router)
-app.include_router(aggregate_router)
-
-app.include_router(run_all_router)
-
-app.include_router(ride_matching)
-app.include_router(rider_driver)
-app.include_router(trip_summary)
+for route in ROUTE_CONFIG:
+    app.include_router(
+        route["router"],
+        prefix=f"{API_PREFIX}{route['prefix']}",
+        tags=route["tags"],
+    )
