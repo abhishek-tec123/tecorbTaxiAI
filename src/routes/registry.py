@@ -9,6 +9,7 @@ from src.routes.runmatcher import router as ride_matching_router
 from src.routes.getDailyHrly_rider_drvr import router as rider_driver_router
 from src.routes.getTripSummary import router as trip_summary_router
 
+from src.routes.generate_trips2 import router as generate_trips_router
 
 ROUTE_CONFIG = [
     {
@@ -50,5 +51,10 @@ ROUTE_CONFIG = [
         "router": trip_summary_router,
         "prefix": "/summary",
         "tags": ["Analytics"],
+    },
+    {
+        "router": generate_trips_router,
+        "prefix": "/trips",
+        "tags": ["Trips"],
     },
 ]
