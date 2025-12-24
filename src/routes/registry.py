@@ -10,6 +10,8 @@ from src.routes.getDailyHrly_rider_drvr import router as rider_driver_router
 from src.routes.getTripSummary import router as trip_summary_router
 
 from src.routes.generate_trips2 import router as generate_trips_router2
+from src.routes.heatmap_route import router as heatmap_router
+
 
 ROUTE_CONFIG = [
     {
@@ -57,4 +59,9 @@ ROUTE_CONFIG = [
         "prefix": "/trips",
         "tags": ["Trips with multiple date"],
     },
+    {
+        "router": heatmap_router,
+        "prefix": "/heatmap",
+        "tags": ["Heatmap"]
+    }
 ]

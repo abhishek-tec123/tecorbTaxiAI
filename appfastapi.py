@@ -3,6 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.routing import APIRoute
 import os
 import sys
+from fastapi.middleware.cors import CORSMiddleware
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SRC_DIR = os.path.join(BASE_DIR, "src")
@@ -17,6 +18,14 @@ app = FastAPI(
     title="Taxi Simulation API",
     description="API wrapper for the taxi simulation project",
     version="1.0.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # change to specific origins in production
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 os.makedirs(MAP_DIR, exist_ok=True)
