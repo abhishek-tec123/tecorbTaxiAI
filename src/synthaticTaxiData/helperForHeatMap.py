@@ -58,11 +58,10 @@ def create_map(all_points):
 
     m = folium.Map(
         location=[center_lat, center_lon],
-        zoom_start=FIXED_ZOOM,
-        min_zoom=FIXED_ZOOM,
-        max_zoom=FIXED_ZOOM,
+        zoom_start=11,   # initial zoom
+        min_zoom=10,     # optional
+        max_zoom=13,     # 🚫 cannot zoom beyond 13
         tiles="CartoDB Positron",
     )
-    m.scrollWheelZoom = False
-    m.doubleClickZoom = False
+
     return m
