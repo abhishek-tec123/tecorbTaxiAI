@@ -12,8 +12,8 @@ class TripRequest(BaseModel):
 @router.post("/generate-trips2")
 def generate_trips(
     request: TripRequest,
-    min_trips: int = Query(20, ge=1),
-    max_trips: int = Query(25, ge=1),
+    min_trips: int = Query(200, ge=1),
+    max_trips: int = Query(250, ge=1),
 ):
     results = []
 
