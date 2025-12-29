@@ -12,6 +12,7 @@ from src.routes.getTripSummary import router as trip_summary_router
 from src.routes.generate_trips2 import router as generate_trips_router2
 from src.routes.heatmap_route import router as heatmap_router
 from src.routes.sevenMon_rider_driver import router as trip_summary_mondays_router  # new Mondays route
+from src.routes.zone_balance import router as zone_balance_route
 
 
 ROUTE_CONFIG = [
@@ -70,5 +71,12 @@ ROUTE_CONFIG = [
         "router": trip_summary_mondays_router,
         "prefix": "/trip-summary-mondays",
         "tags": ["Trip Summary Mondays"]
+    },
+
+    {
+    "router": zone_balance_route,
+    "prefix": "/zone-balance",
+    "tags": ["Zone Balance RL"],
     }
+
 ]

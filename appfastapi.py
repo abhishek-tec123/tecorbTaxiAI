@@ -1,69 +1,18 @@
-# from fastapi import FastAPI
-# from fastapi.staticfiles import StaticFiles
-# from fastapi.routing import APIRoute
-# import os
-# import sys
-# from fastapi.middleware.cors import CORSMiddleware
-
-# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-# SRC_DIR = os.path.join(BASE_DIR, "src")
-# MAP_DIR = os.path.join(BASE_DIR, "map_file")
-
-# if SRC_DIR not in sys.path:
-#     sys.path.insert(0, SRC_DIR)
-
-# from src.routes.registry import ROUTE_CONFIG
-
-# app = FastAPI(
-#     title="Taxi Simulation API",
-#     description="API wrapper for the taxi simulation project",
-#     version="1.0.0",
-# )
-
-# app.add_middleware(
-#     CORSMiddleware,
-#     allow_origins=["*"],  # change to specific origins in production
-#     allow_credentials=False,
-#     allow_methods=["*"],
-#     allow_headers=["*"],
-# )
-
-# os.makedirs(MAP_DIR, exist_ok=True)
-# app.mount("/map_file", StaticFiles(directory=MAP_DIR), name="map_file")
-
-# @app.get("/health", tags=["Health"])
-# def health_check():
-#     return {"status": "ok"}
-
-# @app.get("/routes", tags=["Meta"])
-# def list_routes():
-#     routes = []
-#     for route in app.routes:
-#         if isinstance(route, APIRoute):
-#             routes.append({
-#                 "path": route.path,
-#                 "methods": sorted(route.methods),
-#                 "name": route.name,
-#                 "tags": route.tags,
-#             })
-#     return routes
-
-# # Register routers
-# API_PREFIX = "/api/v1"
-
-# for route in ROUTE_CONFIG:
-#     app.include_router(
-#         route["router"],
-#         prefix=f"{API_PREFIX}{route['prefix']}",
-#         tags=route["tags"],
-#     )
-
-
-# api.py
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from fastapi.routing import APIRoute
+import os
+import sys
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from zoneBalance.train import train  # Import your train function
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+SRC_DIR = os.path.join(BASE_DIR, "src")
+MAP_DIR = os.path.join(BASE_DIR, "map_file")
+
+if SRC_DIR not in sys.path:
+    sys.path.insert(0, SRC_DIR)
+
+from src.routes.registry import ROUTE_CONFIG
 
 app = FastAPI(
     title="Taxi Simulation API",
@@ -71,39 +20,40 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Update in production
+    allow_origins=["*"],  # change to specific origins in production
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+os.makedirs(MAP_DIR, exist_ok=True)
+app.mount("/map_file", StaticFiles(directory=MAP_DIR), name="map_file")
+
 @app.get("/health", tags=["Health"])
 def health_check():
     return {"status": "ok"}
-
-@app.get("/train", tags=["Train"])
-def run_training():
-    """
-    Runs the taxi relocation training and returns JSON results.
-    Warning: this may take some time depending on number of episodes.
-    """
-    try:
-        result = train()
-        return JSONResponse(content=result)
-    except Exception as e:
-        return JSONResponse(content={"error": str(e)}, status_code=500)
 
 @app.get("/routes", tags=["Meta"])
 def list_routes():
     routes = []
     for route in app.routes:
-        routes.append({
-            "path": route.path,
-            "methods": sorted(route.methods),
-            "name": route.name,
-            "tags": route.tags,
-        })
+        if isinstance(route, APIRoute):
+            routes.append({
+                "path": route.path,
+                "methods": sorted(route.methods),
+                "name": route.name,
+                "tags": route.tags,
+            })
     return routes
+
+# Register routers
+API_PREFIX = "/api/v1"
+
+for route in ROUTE_CONFIG:
+    app.include_router(
+        route["router"],
+        prefix=f"{API_PREFIX}{route['prefix']}",
+        tags=route["tags"],
+    )
