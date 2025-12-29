@@ -3,39 +3,47 @@ import json
 import logging
 import aiohttp
 
+from multi_armed_bandit import UCBBandit
 from matcher import build_cost_matrix, match_and_analyze
 from mapplot import plot_map
 from osrm import osrm_route
 from data_source import load_drivers_df, generate_riders_df
 
-# =====================================================
-# LOGGING
-# =====================================================
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("RideMatching")
 
-# =====================================================
-# MAIN
-# =====================================================
 
 async def runmatcher():
     num_riders = int(input("Enter number of riders: "))
 
-    # -------------------------------------------------
-    # LOAD DATA
-    # -------------------------------------------------
+    # -------------------------------
+    # Load data
+    # -------------------------------
     drivers_df = load_drivers_df()
     riders_df = generate_riders_df(num_riders)
 
     drivers = drivers_df.rename(columns={"driver_id": "id"}).to_dict("records")
     riders = riders_df.rename(columns={"rider_id": "id"}).to_dict("records")
 
-    logger.info("Loaded %d drivers and %d riders", len(drivers), len(riders))
+    # -------------------------------
+    # Bandit setup
+    # -------------------------------
+    arms = [
+        {"eta_w": 1.0, "dist_w": 0.0},
+        {"eta_w": 0.7, "dist_w": 0.3},
+        {"eta_w": 0.5, "dist_w": 0.5},
+        {"eta_w": 0.3, "dist_w": 0.7},
+    ]
 
-    # -------------------------------------------------
-    # OSRM ETA LOOKUPS
-    # -------------------------------------------------
+    bandit = UCBBandit(arms)
+    arm_idx = bandit.select_arm()
+    arm = arms[arm_idx]
+
+    logger.info("Selected arm %d → %s", arm_idx, arm)
+
+    # -------------------------------
+    # OSRM lookups
+    # -------------------------------
     eta_lookup = {}
     route_lookup = {}
 
@@ -54,12 +62,16 @@ async def runmatcher():
                 }
                 route_lookup[(r["id"], d["id"])] = geom
 
-    logger.info("OSRM routes computed")
-
-    # -------------------------------------------------
-    # MATCHING
-    # -------------------------------------------------
-    cost = build_cost_matrix(riders, drivers, eta_lookup)
+    # -------------------------------
+    # Matching
+    # -------------------------------
+    cost = build_cost_matrix(
+        riders,
+        drivers,
+        eta_lookup,
+        eta_w=arm["eta_w"],
+        dist_w=arm["dist_w"]
+    )
 
     matches, explanations, metrics = match_and_analyze(
         riders,
@@ -68,37 +80,40 @@ async def runmatcher():
         eta_lookup
     )
 
-    logger.info("Matching completed")
+    # -------------------------------
+    # Learning reward (bandit)
+    # -------------------------------
+    reward = -metrics["average_wait_time_sec"]
+    bandit.update(arm_idx, reward)
 
-    # -------------------------------------------------
-    # MAP
-    # -------------------------------------------------
+    # -------------------------------
+    # Map
+    # -------------------------------
     map_file = plot_map(
-        riders=riders,
-        drivers=drivers,
-        matches=matches,
-        eta_lookup=eta_lookup,
-        route_lookup=route_lookup,
-        output_file="map.html"
+        riders,
+        drivers,
+        matches,
+        eta_lookup,
+        route_lookup,
+        "map.html"
     )
 
-    logger.info("Map saved to %s", map_file)
-
-    # -------------------------------------------------
-    # OUTPUT
-    # -------------------------------------------------
+    # -------------------------------
+    # Output (FINAL, COMPLETE)
+    # -------------------------------
     output = {
-        "matches": matches,
-        "metrics": metrics,
-        "map_file": map_file
+        "message": "Ride matching completed successfully",
+        "num_riders": num_riders,
+        "result": {
+            "matches": matches,
+            "metrics": metrics,
+            "average_reward_per_episode": round(bandit.average_reward, 3),
+            "map_file": map_file
+        }
     }
 
     print(json.dumps(output, indent=2))
 
 
-# # =====================================================
-# # RUN
-# # =====================================================
-
-# if __name__ == "__main__":
-#     asyncio.run(runmatcher())
+if __name__ == "__main__":
+    asyncio.run(runmatcher())
