@@ -1,6 +1,10 @@
 # helpers.py
 import numpy as np
-import json
+import json,uuid
+
+def generate_dummy_driver_id():
+    return uuid.uuid4().hex[:8]  # e.g. "1bd20e76"
+
 
 def performance_score(final_balance, riders, weight_perfect=0.7):
     """
@@ -102,6 +106,7 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
             move_conf = move_confidence_scores[idx].get("confidence_score", 0.0)
 
         move_data = {
+            "driver_id": generate_dummy_driver_id(),
             "from_zone_id": int(f),
             "to_zone_id": int(t),
             "num_drivers": int(num),
