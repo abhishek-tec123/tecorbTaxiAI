@@ -2,17 +2,26 @@ from fastapi import APIRouter, HTTPException
 from src.synthaticTaxiData.group_hexes_connected import (
     groups_to_json, groups, RIDER_COUNTS, DRIVER_COUNTS
 )
+from pydantic import BaseModel
+
 from zoneBalance.train import train_single_group
 
 router = APIRouter()
 
+class TrainGroupRequest(BaseModel):
+    group_id: str
 
-@router.post("/group/{group_id}")
-def train_group(group_id: str):
+@router.post("/group")
+def train_group(payload: TrainGroupRequest):
     """
     Train RL model for a single connected hex group.
-    Example group_id: group_1
+    Example JSON:
+    {
+        "group_id": "group_1"
+    }
     """
+
+    group_id = payload.group_id
 
     group_json = groups_to_json(groups, RIDER_COUNTS, DRIVER_COUNTS)
 
@@ -32,7 +41,7 @@ def train_group(group_id: str):
             detail=f"Group '{group_id}' not found. Available groups: {list(group_json.keys())}"
         )
 
-    # ✅ Extract numeric ID
+    # ✅ Extract numeric ID for trainer
     numeric_group_id = group_id.replace("group_", "")
 
     try:
