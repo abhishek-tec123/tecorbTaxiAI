@@ -320,7 +320,7 @@ for h in all_hexes:
         popup=f"{h}<br>Riders: {r}<br>Drivers: {d}",
     ).add_to(m)
 
-m.save("map_rider_driver_polygon_hex.html")
+# m.save("map_rider_driver_polygon_hex.html")
 print("Map saved → map_rider_driver_polygon_hex.html")
 
 # -----------------------------
