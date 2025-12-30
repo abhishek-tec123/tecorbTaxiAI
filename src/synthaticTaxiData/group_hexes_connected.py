@@ -1,7 +1,8 @@
-# group_hexes_connected_map_4groups.py
+# group_hexes_connected_map_4groups_json_only.py
 # ------------------------------------------------
 # AUTO-RUN
 # Shows 4 connected H3 groups on a Folium map
+# Outputs group/hex info as JSON only
 # ------------------------------------------------
 
 import networkx as nx
@@ -9,9 +10,12 @@ from collections import deque
 import folium
 from shapely.geometry import Polygon
 from h3 import h3
+import json
 
 # IMPORT DATA FROM AUTO-RUN MODULE
-from plot_rider_driver import HEXES, RIDER_COUNTS, DRIVER_COUNTS, NYC_POLYGON
+# Use an explicit relative import so this works when the module is
+# imported as part of the src.synthaticTaxiData package.
+from .plot_rider_driver import HEXES, RIDER_COUNTS, DRIVER_COUNTS, NYC_POLYGON
 
 # ------------------------------------------------
 # 1. Build adjacency graph
@@ -21,20 +25,15 @@ G = nx.Graph()
 
 for h in HEXES:
     G.add_node(h)
-    for n in h3.k_ring(h, 1):  # H3 v3 compatible
+    for n in h3.k_ring(h, 1):
         if n in hex_set and n != h:
             G.add_edge(h, n)
-
-print(f"Total hexes: {len(G.nodes)}")
-print(f"Connected components: {nx.number_connected_components(G)}")
 
 # ------------------------------------------------
 # 2. Balanced connected grouping (4 groups, deterministic)
 # ------------------------------------------------
 def split_connected_balanced(graph, k=4):
-    nodes = sorted(graph.nodes)  # deterministic order
-
-    # Pick seeds evenly across the node list
+    nodes = sorted(graph.nodes)
     n = len(nodes)
     step = max(1, n // k)
     seeds = [nodes[i * step] for i in range(k)]
@@ -48,13 +47,12 @@ def split_connected_balanced(graph, k=4):
         groups[i].add(h)
         queues[i].append(h)
 
-    # BFS growth for each group
     while any(queues):
         for i in range(k):
             if not queues[i]:
                 continue
             cur = queues[i].popleft()
-            for nbr in sorted(graph.neighbors(cur)):  # deterministic neighbor order
+            for nbr in sorted(graph.neighbors(cur)):
                 if nbr not in owner:
                     owner[nbr] = i
                     groups[i].add(nbr)
@@ -65,15 +63,34 @@ def split_connected_balanced(graph, k=4):
 groups = split_connected_balanced(G, k=4)
 
 # ------------------------------------------------
-# 2b. Print groups and their hex IDs
+# 3. JSON output function
 # ------------------------------------------------
-for gid, hexes in sorted(groups.items()):
-    print(f"\nGroup {gid + 1} ({len(hexes)} hexes):")
-    for h in sorted(hexes):
-        print(h)
+def groups_to_json(groups, rider_counts, driver_counts):
+    result = {}
+    for gid, hexes in sorted(groups.items()):
+        group_data = {
+            "hexes": [],
+            "total_riders": 0,
+            "total_drivers": 0
+        }
+        for h in sorted(hexes):
+            riders = rider_counts.get(h, 0)
+            drivers = driver_counts.get(h, 0)
+            group_data["hexes"].append({
+                "hex_id": h,
+                "riders": riders,
+                "drivers": drivers
+            })
+            group_data["total_riders"] += riders
+            group_data["total_drivers"] += drivers
+        result[f"group_{gid + 1}"] = group_data
+    return result
+
+# Generate JSON
+group_json = groups_to_json(groups, RIDER_COUNTS, DRIVER_COUNTS)
 
 # ------------------------------------------------
-# 3. Create Folium map
+# 4. Folium map creation
 # ------------------------------------------------
 def center_hexes(hexes):
     lats, lons = [], []
@@ -90,21 +107,11 @@ m = folium.Map(
     tiles="CartoDB Positron"
 )
 
-# ------------------------------------------------
-# 4. Colors for 4 groups
-# ------------------------------------------------
-COLORS = {
-    0: "blue",
-    1: "green",
-    2: "orange",
-    3: "purple",
-}
-
+# Colors for 4 groups
+COLORS = {0: "blue", 1: "green", 2: "orange", 3: "purple"}
 layers = {i: folium.FeatureGroup(name=f"Group {i+1}") for i in range(4)}
 
-# ------------------------------------------------
-# 5. Draw hexes by group
-# ------------------------------------------------
+# Draw hexes by group
 for gid, hexes in groups.items():
     for h in hexes:
         boundary = h3.h3_to_geo_boundary(h, geo_json=True)
@@ -136,15 +143,14 @@ for gid, hexes in groups.items():
                 popup=popup,
             ).add_to(layers[gid])
 
-# ------------------------------------------------
-# 6. Add layers & save
-# ------------------------------------------------
+# Add layers & save
 for layer in layers.values():
     m.add_child(layer)
 
 folium.LayerControl(collapsed=False).add_to(m)
-
 m.save("map_4_connected_hex_groups.html")
 
-print("\n✅ Map saved → map_4_connected_hex_groups.html")
-print("Open this file in your browser to see the 4 zones.")
+# ------------------------------------------------
+# 5. Show JSON only
+# ------------------------------------------------
+# print(json.dumps(group_json, indent=2))

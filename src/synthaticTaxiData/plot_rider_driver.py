@@ -206,7 +206,7 @@ import mysql.connector
 import folium
 from h3 import h3
 from shapely.geometry import Polygon, Point
-from nyc_polygon import NYC_POLYGON, POLY_COORDS
+from .nyc_polygon import NYC_POLYGON, POLY_COORDS
 
 # -----------------------------
 # Time window

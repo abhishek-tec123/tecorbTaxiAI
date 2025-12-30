@@ -20,7 +20,7 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
                          agent_score, oracle_score, riders, drivers,
                          relocation_success_rate=0.0, zone_confidence_scores=None,
                          move_confidence_scores=None, avg_reward_per_episode=0.0,
-                         episode_cumulative_reward=None):
+                         episode_cumulative_reward=None, hex_ids=None):
     """
     Generate JSON output with:
       - Zone-level details
@@ -30,34 +30,49 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
     """
     num_zones = len(agent_state)
     balanced_zones_agent = np.sum(agent_state == 0)
-    balanced_zones_oracle = np.sum(oracle_state == 0)
+    
+    # Handle None oracle values
+    has_oracle = oracle_state is not None
+    if has_oracle:
+        oracle_state = np.array(oracle_state)
+        balanced_zones_oracle = np.sum(oracle_state == 0)
+    else:
+        balanced_zones_oracle = 0
+    
     zones = []
 
-    # RL accuracy metrics
-    perfect_zones_match = np.sum((agent_state == 0) & (oracle_state == 0))
-    perfect_zones_oracle = np.sum(oracle_state == 0)
-    rl_accuracy_perfect = perfect_zones_match / perfect_zones_oracle if perfect_zones_oracle > 0 else 0.0
+    # RL accuracy metrics (only if oracle is available)
+    if has_oracle:
+        perfect_zones_match = np.sum((agent_state == 0) & (oracle_state == 0))
+        perfect_zones_oracle = np.sum(oracle_state == 0)
+        rl_accuracy_perfect = perfect_zones_match / perfect_zones_oracle if perfect_zones_oracle > 0 else 0.0
 
-    state_diff = np.abs(agent_state - oracle_state)
-    max_possible_diff = np.sum(np.abs(oracle_state)) if np.sum(np.abs(oracle_state)) > 0 else 1
-    rl_accuracy_state = 1.0 - (np.sum(state_diff) / max_possible_diff) if max_possible_diff > 0 else 0.0
-    rl_accuracy_state = max(0.0, min(1.0, rl_accuracy_state))
-    rl_accuracy = 0.6 * rl_accuracy_perfect + 0.4 * rl_accuracy_state
+        state_diff = np.abs(agent_state - oracle_state)
+        max_possible_diff = np.sum(np.abs(oracle_state)) if np.sum(np.abs(oracle_state)) > 0 else 1
+        rl_accuracy_state = 1.0 - (np.sum(state_diff) / max_possible_diff) if max_possible_diff > 0 else 0.0
+        rl_accuracy_state = max(0.0, min(1.0, rl_accuracy_state))
+        rl_accuracy = 0.6 * rl_accuracy_perfect + 0.4 * rl_accuracy_state
+    else:
+        rl_accuracy = 0.0
+        rl_accuracy_perfect = 0.0
+        rl_accuracy_state = 0.0
 
     # ---------------- Zone-level details ----------------
     for zone_id in range(num_zones):
-        zones.append({
+        zone_data = {
             "zone_id": int(zone_id),
             "initial_riders": int(agent_final_riders[zone_id]),
             "initial_drivers": int(drivers[zone_id]),
             "final_drivers_agent": int(agent_final_drivers[zone_id]),
             "final_balance_agent": int(agent_state[zone_id]),
-            "final_balance_oracle": int(oracle_state[zone_id]),
             "is_balanced_agent": bool(agent_state[zone_id] == 0),
-            "is_balanced_oracle": bool(oracle_state[zone_id] == 0),
             "balance_status": "balanced" if agent_state[zone_id] == 0 else ("surplus" if agent_state[zone_id] < 0 else "deficit"),
             "imbalance_magnitude": int(abs(agent_state[zone_id]))
-        })
+        }
+        if has_oracle:
+            zone_data["final_balance_oracle"] = int(oracle_state[zone_id])
+            zone_data["is_balanced_oracle"] = bool(oracle_state[zone_id] == 0)
+        zones.append(zone_data)
 
     # ---------------- Agent moves with reward and confidence scores ----------------
     dispatch_moves_agent = []
@@ -86,16 +101,36 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
         if move_confidence_scores and idx < len(move_confidence_scores):
             move_conf = move_confidence_scores[idx].get("confidence_score", 0.0)
 
-        dispatch_moves_agent.append({
+        move_data = {
             "from_zone_id": int(f),
             "to_zone_id": int(t),
             "num_drivers": int(num),
             "reward": float(reward),
             "confidence_score": float(move_conf)
-        })
+        }
+        
+        # Add hex IDs if available
+        if hex_ids and len(hex_ids) > max(f, t):
+            move_data["from_hex"] = [int(f), hex_ids[int(f)]]
+            move_data["to_hex"] = [int(t), hex_ids[int(t)]]
+        
+        dispatch_moves_agent.append(move_data)
 
-    # ---------------- Oracle moves (unchanged) ----------------
-    dispatch_moves_oracle = [{"from_zone_id": int(m[0]), "to_zone_id": int(m[1]), "num_drivers": int(m[2])} for m in oracle_moves]
+    # ---------------- Oracle moves ----------------
+    dispatch_moves_oracle = []
+    if oracle_moves is not None:
+        for m in oracle_moves:
+            f, t, num = m[0], m[1], m[2]
+            oracle_move_data = {
+                "from_zone_id": int(f),
+                "to_zone_id": int(t),
+                "num_drivers": int(num)
+            }
+            # Add hex IDs if available
+            if hex_ids and len(hex_ids) > max(f, t):
+                oracle_move_data["from_hex"] = [int(f), hex_ids[int(f)]]
+                oracle_move_data["to_hex"] = [int(t), hex_ids[int(t)]]
+            dispatch_moves_oracle.append(oracle_move_data)
 
     # Prepare zone confidence scores
     zone_conf_dict = {}
@@ -109,14 +144,14 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
             "agent_performance": {
                 "balanced_zones": int(balanced_zones_agent),
                 "unbalanced_zones": num_zones - int(balanced_zones_agent),
-                "combined_score": float(agent_score),
+                "combined_score": float(agent_score) if agent_score is not None else None,
                 "total_moves": len(agent_moves)
             },
             "oracle_performance": {
                 "balanced_zones": int(balanced_zones_oracle),
                 "unbalanced_zones": num_zones - int(balanced_zones_oracle),
-                "combined_score": float(oracle_score),
-                "total_moves": len(oracle_moves)
+                "combined_score": float(oracle_score) if oracle_score is not None else None,
+                "total_moves": len(oracle_moves) if oracle_moves is not None else 0
             },
             "rl_accuracy": {
                 "overall_accuracy": float(rl_accuracy),
@@ -124,8 +159,8 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
                 "state_similarity_accuracy": float(rl_accuracy_state)
             },
             "metrics": {
-                "relocation_success_rate": float(relocation_success_rate),
-                "average_reward_per_episode": float(avg_reward_per_episode),
+                "relocation_success_rate": float(relocation_success_rate) if relocation_success_rate is not None else None,
+                "average_reward_per_episode": float(avg_reward_per_episode) if avg_reward_per_episode is not None else 0.0,
                 "zone_confidence_scores": zone_conf_dict
             }
         },
