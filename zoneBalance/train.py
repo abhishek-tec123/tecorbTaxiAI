@@ -46,8 +46,9 @@ class MultiZoneEnv:
         return float(reward)
 
 def train():
-    riders = [14,6,19,18,20,25,29]
-    drivers = [15,20,15,14,15,15,16]
+    riders = [14, 6, 19, 18, 20,25, 29, 12, 17, 22,16, 19, 21, 18, 24,20, 15, 27, 23, 14,18, 16, 19, 22, 26]
+    drivers = [15, 20, 15, 14, 15,15, 16, 14, 18, 20,17, 18, 19, 16, 22,21, 16, 25, 21, 15,17, 18, 20, 21, 24]
+
     env = MultiZoneEnv(riders, drivers, max_moves=100)
     agent = DQNAgent(state_size=len(riders))
     episodes = 100

@@ -26,8 +26,8 @@ from schema import ALL_TABLES, HEX_LIST  # type: ignore
 import rider_driver  # type: ignore
 import trip  # type: ignore
 import save_hex_counts_mysql  # type: ignore
-import store_daily_count_rid_dri_perhex  # type: ignore
-import store_hrly_count_rid_dri_perhex  # type: ignore
+import store_daily_count_rid_dri  # type: ignore
+import store_hrly_count_rid_dri  # type: ignore
 from db_config import get_connection as mysql_get_connection  # type: ignore
 
 
@@ -159,8 +159,8 @@ def aggregate(*, target_date: date) -> None:
 
     Runs:
     - Trip H3 daily & hourly counts (save_hex_counts_mysql)
-    - Rider/driver daily and hourly hex counts (store_daily_count_rid_dri_perhex,
-      store_hrly_count_rid_dri_perhex)
+    - Rider/driver daily and hourly hex counts (store_daily_count_rid_dri,
+      store_hrly_count_rid_dri)
     """
     target_date_str = target_date.strftime("%Y-%m-%d")
     print(f"Running trip H3 aggregations for {target_date_str}...")
@@ -170,11 +170,11 @@ def aggregate(*, target_date: date) -> None:
     # Entity-based (riders/drivers) daily & hourly hex counts
     for entity in ("riders", "drivers"):
         print(f"Running DAILY hex counts for {entity} on {target_date_str}...")
-        store_daily_count_rid_dri_perhex.process_entity(entity, target_date)
+        store_daily_count_rid_dri.process_entity(entity, target_date)
 
     for entity in ("riders", "drivers"):
         print(f"Running HOURLY hex counts for {entity} on {target_date_str}...")
-        store_hrly_count_rid_dri_perhex.process_entity(entity, target_date)
+        store_hrly_count_rid_dri.process_entity(entity, target_date)
 
     print(f"All aggregations completed for {target_date_str}.")
 # # insert with single single date-----------------------------------------------------
