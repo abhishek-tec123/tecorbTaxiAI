@@ -1,9 +1,9 @@
 # train.py
 import numpy as np
 import json
-from dqn import DQNAgent
-from oracle import Oracle
-from helpers import performance_score, generate_json_output
+from zoneBalance.dqn import DQNAgent
+from zoneBalance.oracle import Oracle
+from zoneBalance.helpers import performance_score, generate_json_output
 
 # import sys
 # import os

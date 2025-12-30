@@ -111,9 +111,15 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
         
         # Add hex IDs if available
         if hex_ids and len(hex_ids) > max(f, t):
-            move_data["from_hex"] = [int(f), hex_ids[int(f)]]
-            move_data["to_hex"] = [int(t), hex_ids[int(t)]]
-        
+            move_data["from_hex"] = {
+                "index": int(f),
+                "hex_id": hex_ids[int(f)]
+            }
+            move_data["to_hex"] = {
+                "index": int(t),
+                "hex_id": hex_ids[int(t)]
+            }
+
         dispatch_moves_agent.append(move_data)
 
     # ---------------- Oracle moves ----------------
@@ -147,22 +153,22 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
                 "combined_score": float(agent_score) if agent_score is not None else None,
                 "total_moves": len(agent_moves)
             },
-            "oracle_performance": {
-                "balanced_zones": int(balanced_zones_oracle),
-                "unbalanced_zones": num_zones - int(balanced_zones_oracle),
-                "combined_score": float(oracle_score) if oracle_score is not None else None,
-                "total_moves": len(oracle_moves) if oracle_moves is not None else 0
-            },
+            # "oracle_performance": {
+            #     "balanced_zones": int(balanced_zones_oracle),
+            #     "unbalanced_zones": num_zones - int(balanced_zones_oracle),
+            #     "combined_score": float(oracle_score) if oracle_score is not None else None,
+            #     "total_moves": len(oracle_moves) if oracle_moves is not None else 0
+            # },
             "rl_accuracy": {
                 "overall_accuracy": float(rl_accuracy),
                 "perfect_zones_accuracy": float(rl_accuracy_perfect),
-                "state_similarity_accuracy": float(rl_accuracy_state)
+                # "state_similarity_accuracy": float(rl_accuracy_state)
             },
-            "metrics": {
-                "relocation_success_rate": float(relocation_success_rate) if relocation_success_rate is not None else None,
-                "average_reward_per_episode": float(avg_reward_per_episode) if avg_reward_per_episode is not None else 0.0,
-                "zone_confidence_scores": zone_conf_dict
-            }
+            # "metrics": {
+            #     "relocation_success_rate": float(relocation_success_rate) if relocation_success_rate is not None else None,
+            #     "average_reward_per_episode": float(avg_reward_per_episode) if avg_reward_per_episode is not None else 0.0,
+            #     "zone_confidence_scores": zone_conf_dict
+            # }
         },
         # "zones": zones,
         "dispatch_moves": {
