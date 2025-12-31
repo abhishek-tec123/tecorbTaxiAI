@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException
 from src.synthaticTaxiData.group_hexes_connected import (
     groups_to_json, groups, RIDER_COUNTS, DRIVER_COUNTS
 )
+from src.synthaticTaxiData.plot_rider_driver import HEXES
 from pydantic import BaseModel
 
 from zoneBalance.train import train_single_group
@@ -45,7 +46,15 @@ def train_group(payload: TrainGroupRequest):
     numeric_group_id = group_id.replace("group_", "")
 
     try:
-        results = train_single_group(group_json, numeric_group_id)
+        # Pass cross-group adjacency information for edge hex balancing
+        hex_set = set(HEXES)
+        results = train_single_group(
+            group_json, numeric_group_id,
+            all_groups=groups,
+            hex_set=hex_set,
+            rider_counts=RIDER_COUNTS,
+            driver_counts=DRIVER_COUNTS
+        )
 
         return {
             "status": "success",

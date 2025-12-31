@@ -3,7 +3,7 @@ import numpy as np
 import json
 from zoneBalance.dqn import DQNAgent
 from zoneBalance.oracle import Oracle
-from zoneBalance.helpers import performance_score, generate_json_output
+from zoneBalance.helpers import performance_score, generate_json_output, get_cross_group_adjacent_hexes
 
 # import sys
 # import os
@@ -13,11 +13,33 @@ from zoneBalance.helpers import performance_score, generate_json_output
 
 
 class MultiZoneEnv:
-    def __init__(self, riders, drivers, max_moves=50):
+    def __init__(self, riders, drivers, max_moves=50, adjacent_hexes_data=None, current_group_size=None):
+        """
+        Parameters:
+        - riders: list of rider counts for current group hexes
+        - drivers: list of driver counts for current group hexes
+        - max_moves: maximum number of moves allowed
+        - adjacent_hexes_data: dict mapping adjacent_hex_id -> {'riders': int, 'drivers': int}
+        - current_group_size: number of hexes in the current group (to distinguish from adjacent hexes)
+        """
         self.riders = np.array(riders, dtype=int)
         self.initial_drivers = np.array(drivers, dtype=int)
         self.max_moves = max_moves
-        self.num_zones = len(riders)
+        self.current_group_size = current_group_size if current_group_size is not None else len(riders)
+        
+        # Handle adjacent hexes from other groups
+        self.adjacent_hexes_data = adjacent_hexes_data or {}
+        self.adjacent_hex_list = sorted(list(self.adjacent_hexes_data.keys())) if self.adjacent_hexes_data else []
+        self.num_adjacent = len(self.adjacent_hex_list)
+        
+        # Extended state includes both current group and adjacent hexes
+        if self.num_adjacent > 0:
+            adjacent_riders = [self.adjacent_hexes_data[h]['riders'] for h in self.adjacent_hex_list]
+            adjacent_drivers = [self.adjacent_hexes_data[h]['drivers'] for h in self.adjacent_hex_list]
+            self.riders = np.concatenate([self.riders, np.array(adjacent_riders, dtype=int)])
+            self.initial_drivers = np.concatenate([self.initial_drivers, np.array(adjacent_drivers, dtype=int)])
+        
+        self.num_zones = len(self.riders)
         self.reset()
 
     def reset(self):
@@ -25,8 +47,8 @@ class MultiZoneEnv:
         self.state = self.riders - self.drivers
         self.moves_done = 0
         self.cumulative_reward = 0.0
-        self.prev_imbalance = np.sum(np.abs(self.state))
-        self.prev_perfect = np.sum(self.state == 0)
+        self.prev_imbalance = np.sum(np.abs(self.state[:self.current_group_size]))  # Only count current group
+        self.prev_perfect = np.sum(self.state[:self.current_group_size] == 0)
         self.dispatch_summary = []
         return self.state.copy()
 
@@ -37,7 +59,9 @@ class MultiZoneEnv:
             self.drivers[from_z] -= num_drivers
             self.drivers[to_z] += num_drivers
             self.moves_done += 1
-            self.dispatch_summary.append((from_z, to_z, int(num_drivers)))
+            # Store move with indication if it's cross-group
+            is_cross_group = (from_z >= self.current_group_size) or (to_z >= self.current_group_size)
+            self.dispatch_summary.append((from_z, to_z, int(num_drivers), is_cross_group))
         self.state = self.riders - self.drivers
         reward = self.calculate_reward()
         self.cumulative_reward += reward
@@ -45,21 +69,27 @@ class MultiZoneEnv:
         return self.state.copy(), reward, done
 
     def calculate_reward(self):
-        current_imbalance = np.sum(np.abs(self.state))
-        current_perfect = np.sum(self.state == 0)
+        # Only calculate reward based on current group balance (not adjacent hexes)
+        current_group_state = self.state[:self.current_group_size]
+        current_imbalance = np.sum(np.abs(current_group_state))
+        current_perfect = np.sum(current_group_state == 0)
         reward = (self.prev_imbalance - current_imbalance) * 3.0
         reward += 5.0 * (current_perfect - self.prev_perfect)
         self.prev_imbalance = current_imbalance
         self.prev_perfect = current_perfect
         return float(reward)
 
-def train_single_group(group_json, group_id):
+def train_single_group(group_json, group_id, all_groups=None, hex_set=None, rider_counts=None, driver_counts=None):
     """
-    Train for a single group.
+    Train for a single group with support for cross-group balancing.
     
     Parameters:
       - group_json: JSON output from groups_to_json()
       - group_id: integer 1, 2, 3, or 4 representing the group
+      - all_groups: dict mapping group_id -> set of hex IDs (for cross-group adjacency)
+      - hex_set: set of all valid hex IDs
+      - rider_counts: dict mapping hex_id -> rider count
+      - driver_counts: dict mapping hex_id -> driver count
     """
     gid = f"group_{group_id}"
     
@@ -70,10 +100,29 @@ def train_single_group(group_json, group_id):
     riders = [h["riders"] for h in hexes_info]
     drivers = [h["drivers"] for h in hexes_info]
     hex_ids = [h["hex_id"] for h in hexes_info]  # Extract hex IDs for mapping
-
-    # Initialize environment and agent
-    env = MultiZoneEnv(riders, drivers, max_moves=100)
-    agent = DQNAgent(state_size=len(riders))
+    current_group_hexes = [h["hex_id"] for h in hexes_info]
+    
+    # Get cross-group adjacent hexes if information is provided
+    adjacent_hexes_data = None
+    adjacent_hex_list = []
+    if all_groups is not None and hex_set is not None and rider_counts is not None and driver_counts is not None:
+        edge_hex_info, adjacent_hex_data, adjacent_hex_list = get_cross_group_adjacent_hexes(
+            current_group_hexes, all_groups, hex_set, rider_counts, driver_counts
+        )
+        if adjacent_hex_list:
+            adjacent_hexes_data = adjacent_hex_data
+            print(f"Group {group_id}: Found {len(adjacent_hex_list)} adjacent hexes from other groups for cross-group balancing")
+    
+    # Initialize environment with adjacent hexes support
+    env = MultiZoneEnv(
+        riders, drivers, 
+        max_moves=100,
+        adjacent_hexes_data=adjacent_hexes_data,
+        current_group_size=len(riders)
+    )
+    
+    # Agent state size includes both current group and adjacent hexes
+    agent = DQNAgent(state_size=env.num_zones)
     episodes = 100
 
     best_agent_reward = -float('inf')
@@ -102,27 +151,63 @@ def train_single_group(group_json, group_id):
 
         if agent_reward > best_agent_reward:
             best_agent_reward = agent_reward
-            best_agent_state = env.state.copy()
+            # Only store state for current group (not adjacent hexes)
+            best_agent_state = env.state[:env.current_group_size].copy()
             best_agent_moves = env.dispatch_summary.copy()
-            best_agent_final_drivers = env.drivers.copy()
-            best_agent_final_riders = env.riders.copy()
+            best_agent_final_drivers = env.drivers[:env.current_group_size].copy()
+            best_agent_final_riders = env.riders[:env.current_group_size].copy()
 
         if (e+1) % 50 == 0 or e == 0:
             print(f"Episode {e+1:04d} | Reward={agent_reward:7.2f} | Eps={agent.epsilon:.3f}")
 
-    # Calculate oracle results
+    # Calculate oracle results (only for current group)
     env.reset()
     oracle_state, oracle_final_drivers, oracle_moves = Oracle.final_balance(env)
-    oracle_score, oracle_perfect, oracle_imbalance = performance_score(oracle_state, env.riders)
+    # Oracle also only considers current group
+    oracle_state = oracle_state[:env.current_group_size] if len(oracle_state) > env.current_group_size else oracle_state
+    oracle_final_drivers = oracle_final_drivers[:env.current_group_size] if len(oracle_final_drivers) > env.current_group_size else oracle_final_drivers
+    # Filter oracle moves to only include those within current group bounds
+    if oracle_moves:
+        filtered_oracle_moves = []
+        for move in oracle_moves:
+            if len(move) >= 3:
+                f, t, num = move[0], move[1], move[2]
+                # Only include moves that involve current group hexes
+                if f < env.current_group_size or t < env.current_group_size:
+                    filtered_oracle_moves.append((f, t, num))
+        oracle_moves = filtered_oracle_moves
+    oracle_score, oracle_perfect, oracle_imbalance = performance_score(oracle_state, env.riders[:env.current_group_size])
     
     # Calculate agent performance score
     agent_score, _, _ = performance_score(best_agent_state, best_agent_final_riders)
 
+    # Filter and map moves to handle cross-group moves properly
+    # Create mapping for adjacent hex indices to hex IDs
+    adjacent_hex_index_map = {}
+    if adjacent_hex_list:
+        for idx, hex_id in enumerate(adjacent_hex_list):
+            adjacent_hex_index_map[env.current_group_size + idx] = hex_id
+    
+    # Filter moves to only include those involving current group hexes
+    # For cross-group moves, we keep them but need to handle mapping in output
+    filtered_moves = []
+    for move in best_agent_moves:
+        if len(move) == 4:  # (from_z, to_z, num, is_cross_group)
+            f, t, num, is_cross_group = move
+        else:  # Legacy format
+            f, t, num = move
+            is_cross_group = (f >= env.current_group_size) or (t >= env.current_group_size)
+        
+        # Only include moves that involve current group hexes
+        if f < env.current_group_size or t < env.current_group_size:
+            filtered_moves.append((f, t, num))
+    
     # Return final JSON output for this group
+    # Pass adjacent hex mapping so output can properly identify cross-group moves
     json_output = generate_json_output(
-        best_agent_state, best_agent_final_drivers, best_agent_final_riders, best_agent_moves,
+        best_agent_state, best_agent_final_drivers, best_agent_final_riders, filtered_moves,
         oracle_state=oracle_state, oracle_final_drivers=oracle_final_drivers, 
-        oracle_final_riders=env.riders, oracle_moves=oracle_moves,
+        oracle_final_riders=env.riders[:env.current_group_size], oracle_moves=oracle_moves,
         agent_score=agent_score, oracle_score=oracle_score,
         riders=riders, drivers=drivers,
         relocation_success_rate=None,
@@ -130,7 +215,8 @@ def train_single_group(group_json, group_id):
         move_confidence_scores=None,
         avg_reward_per_episode=np.mean(episode_rewards),
         episode_cumulative_reward={i: r for i, r in enumerate(episode_rewards)},
-        hex_ids=hex_ids  # Pass hex IDs for mapping
+        hex_ids=hex_ids,  # Pass hex IDs for mapping (only current group)
+        adjacent_hex_index_map=adjacent_hex_index_map  # Map for adjacent hex indices
     )
 
     return json_output

@@ -1,9 +1,67 @@
 # helpers.py
 import numpy as np
 import json,uuid
+from h3 import h3
 
 def generate_dummy_driver_id():
     return uuid.uuid4().hex[:8]  # e.g. "1bd20e76"
+
+
+def get_cross_group_adjacent_hexes(current_group_hexes, all_groups, hex_set, rider_counts, driver_counts):
+    """
+    Identify edge hexes in the current group and their adjacent hexes from other groups.
+    
+    Parameters:
+    - current_group_hexes: list of hex IDs in the current group
+    - all_groups: dict mapping group_id -> set of hex IDs
+    - hex_set: set of all valid hex IDs
+    - rider_counts: dict mapping hex_id -> rider count
+    - driver_counts: dict mapping hex_id -> driver count
+    
+    Returns:
+    - edge_hex_info: dict mapping edge_hex_id -> list of adjacent hexes from other groups
+    - adjacent_hex_data: dict mapping adjacent_hex_id -> {'riders': int, 'drivers': int, 'group_id': int}
+    - adjacent_hex_list: ordered list of adjacent hex IDs (for indexing)
+    """
+    current_group_set = set(current_group_hexes)
+    edge_hex_info = {}  # edge_hex -> [adjacent_hexes from other groups]
+    adjacent_hex_data = {}  # adjacent_hex -> {riders, drivers, group_id}
+    adjacent_hex_set = set()
+    
+    # Find which group each hex belongs to
+    hex_to_group = {}
+    for gid, hexes in all_groups.items():
+        for h in hexes:
+            hex_to_group[h] = gid
+    
+    # For each hex in current group, check its neighbors
+    for hex_id in current_group_hexes:
+        neighbors = h3.k_ring(hex_id, 1)
+        cross_group_neighbors = []
+        
+        for neighbor in neighbors:
+            if neighbor not in hex_set or neighbor == hex_id:
+                continue
+            if neighbor not in current_group_set and neighbor in hex_to_group:
+                # This neighbor is in a different group
+                cross_group_neighbors.append(neighbor)
+                adjacent_hex_set.add(neighbor)
+                
+                # Store data for this adjacent hex
+                if neighbor not in adjacent_hex_data:
+                    adjacent_hex_data[neighbor] = {
+                        'riders': rider_counts.get(neighbor, 0),
+                        'drivers': driver_counts.get(neighbor, 0),
+                        'group_id': hex_to_group[neighbor]
+                    }
+        
+        if cross_group_neighbors:
+            edge_hex_info[hex_id] = cross_group_neighbors
+    
+    # Create ordered list of adjacent hexes for consistent indexing
+    adjacent_hex_list = sorted(list(adjacent_hex_set))
+    
+    return edge_hex_info, adjacent_hex_data, adjacent_hex_list
 
 
 def performance_score(final_balance, riders, weight_perfect=0.7):
@@ -24,7 +82,7 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
                          agent_score, oracle_score, riders, drivers,
                          relocation_success_rate=0.0, zone_confidence_scores=None,
                          move_confidence_scores=None, avg_reward_per_episode=0.0,
-                         episode_cumulative_reward=None, hex_ids=None):
+                         episode_cumulative_reward=None, hex_ids=None, adjacent_hex_index_map=None):
     """
     Generate JSON output with:
       - Zone-level details
@@ -82,23 +140,31 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
     dispatch_moves_agent = []
     temp_drivers = agent_final_drivers.copy()
     temp_state = agent_final_riders - temp_drivers
+    num_zones = len(agent_final_drivers)  # Current group size
 
     for idx, move in enumerate(agent_moves):
         f, t, num = move
 
-        # Reward calculation
-        prev_imbalance = np.sum(np.abs(temp_state))
-        prev_perfect = np.sum(temp_state == 0)
-        if num > 0 and f != t:
-            temp_drivers[f] -= num
-            temp_drivers[t] += num
-            next_state = agent_final_riders - temp_drivers
-            current_imbalance = np.sum(np.abs(next_state))
-            current_perfect = np.sum(next_state == 0)
-            reward = float((prev_imbalance - current_imbalance) * 3.0 + 5.0 * (current_perfect - prev_perfect))
-            temp_state = next_state.copy()
-        else:
+        # Reward calculation - only process moves that affect current group
+        # Skip if both zones are out of bounds (shouldn't happen after filtering, but safety check)
+        if f >= num_zones and t >= num_zones:
             reward = 0.0
+        else:
+            prev_imbalance = np.sum(np.abs(temp_state))
+            prev_perfect = np.sum(temp_state == 0)
+            if num > 0 and f != t:
+                # Only update drivers for zones within current group bounds
+                if f < num_zones:
+                    temp_drivers[f] -= num
+                if t < num_zones:
+                    temp_drivers[t] += num
+                next_state = agent_final_riders - temp_drivers
+                current_imbalance = np.sum(np.abs(next_state))
+                current_perfect = np.sum(next_state == 0)
+                reward = float((prev_imbalance - current_imbalance) * 3.0 + 5.0 * (current_perfect - prev_perfect))
+                temp_state = next_state.copy()
+            else:
+                reward = 0.0
 
         # Get confidence score for this move if available
         move_conf = 0.0
@@ -111,18 +177,37 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
             "to_zone_id": int(t),
             "num_drivers": int(num),
             "reward": float(reward),
-            "confidence_score": float(move_conf)
+            "confidence_score": float(move_conf),
+            "is_cross_group": False
         }
         
-        # Add hex IDs if available
-        if hex_ids and len(hex_ids) > max(f, t):
+        # Add hex IDs if available, handling both current group and adjacent hexes
+        from_hex_id = None
+        to_hex_id = None
+        
+        # Check if from_zone is in current group or adjacent hex
+        if hex_ids and f < len(hex_ids):
+            from_hex_id = hex_ids[int(f)]
+        elif adjacent_hex_index_map and f in adjacent_hex_index_map:
+            from_hex_id = adjacent_hex_index_map[f]
+            move_data["is_cross_group"] = True
+        
+        # Check if to_zone is in current group or adjacent hex
+        if hex_ids and t < len(hex_ids):
+            to_hex_id = hex_ids[int(t)]
+        elif adjacent_hex_index_map and t in adjacent_hex_index_map:
+            to_hex_id = adjacent_hex_index_map[t]
+            move_data["is_cross_group"] = True
+        
+        if from_hex_id:
             move_data["from_hex"] = {
                 "index": int(f),
-                "hex_id": hex_ids[int(f)]
+                "hex_id": from_hex_id
             }
+        if to_hex_id:
             move_data["to_hex"] = {
                 "index": int(t),
-                "hex_id": hex_ids[int(t)]
+                "hex_id": to_hex_id
             }
 
         dispatch_moves_agent.append(move_data)
@@ -135,12 +220,32 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
             oracle_move_data = {
                 "from_zone_id": int(f),
                 "to_zone_id": int(t),
-                "num_drivers": int(num)
+                "num_drivers": int(num),
+                "is_cross_group": False
             }
-            # Add hex IDs if available
-            if hex_ids and len(hex_ids) > max(f, t):
-                oracle_move_data["from_hex"] = [int(f), hex_ids[int(f)]]
-                oracle_move_data["to_hex"] = [int(t), hex_ids[int(t)]]
+            # Add hex IDs if available, handling both current group and adjacent hexes
+            from_hex_id = None
+            to_hex_id = None
+            
+            # Check if from_zone is in current group or adjacent hex
+            if hex_ids and f < len(hex_ids):
+                from_hex_id = hex_ids[int(f)]
+            elif adjacent_hex_index_map and f in adjacent_hex_index_map:
+                from_hex_id = adjacent_hex_index_map[f]
+                oracle_move_data["is_cross_group"] = True
+            
+            # Check if to_zone is in current group or adjacent hex
+            if hex_ids and t < len(hex_ids):
+                to_hex_id = hex_ids[int(t)]
+            elif adjacent_hex_index_map and t in adjacent_hex_index_map:
+                to_hex_id = adjacent_hex_index_map[t]
+                oracle_move_data["is_cross_group"] = True
+            
+            if from_hex_id:
+                oracle_move_data["from_hex"] = [int(f), from_hex_id]
+            if to_hex_id:
+                oracle_move_data["to_hex"] = [int(t), to_hex_id]
+            
             dispatch_moves_oracle.append(oracle_move_data)
 
     # Prepare zone confidence scores
@@ -169,11 +274,11 @@ def generate_json_output(agent_state, agent_final_drivers, agent_final_riders, a
                 "perfect_zones_accuracy": float(rl_accuracy_perfect),
                 # "state_similarity_accuracy": float(rl_accuracy_state)
             },
-            # "metrics": {
-            #     "relocation_success_rate": float(relocation_success_rate) if relocation_success_rate is not None else None,
-            #     "average_reward_per_episode": float(avg_reward_per_episode) if avg_reward_per_episode is not None else 0.0,
-            #     "zone_confidence_scores": zone_conf_dict
-            # }
+            "metrics": {
+                "relocation_success_rate": float(relocation_success_rate) if relocation_success_rate is not None else None,
+                "average_reward_per_episode": float(avg_reward_per_episode) if avg_reward_per_episode is not None else 0.0,
+                "zone_confidence_scores": zone_conf_dict
+            }
         },
         # "zones": zones,
         "dispatch_moves": {
